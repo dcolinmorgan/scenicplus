@@ -817,7 +817,8 @@ def infer_grn(
         keep_only_activating: bool,
         rho_threshold: float,
         min_target_genes: int,
-        n_cpu: int):
+        n_cpu: int,
+        seed: int):
     """
     Infer gene regulatory network.
 
@@ -869,6 +870,8 @@ def infer_grn(
         Minimum number of target genes.
     n_cpu : int
         Number of parallel processes to run.
+    seed: int
+        Random seed to use.
 
     """
     from scenicplus.grn_builder.gsea_approach import build_grn
@@ -906,7 +909,8 @@ def infer_grn(
         min_target_genes=min_target_genes,
         n_cpu=n_cpu,
         merge_eRegulons=True,
-        disable_tqdm=False)
+        disable_tqdm=False,
+        seed=seed)
 
     log.info("Formatting eGRN as table.")
     eRegulon_metadata = _format_egrns(

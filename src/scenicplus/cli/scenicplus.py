@@ -880,7 +880,8 @@ def add_parser_for_infer_egrn(subparser:argparse._SubParsersAction):
             keep_only_activating=arg.keep_only_activating_eRegulons,
             rho_threshold=arg.rho_threshold,
             min_target_genes=arg.min_target_genes,
-            n_cpu=arg.n_cpu)
+            n_cpu=arg.n_cpu,
+            seed=arg.seed)
 
     parser.set_defaults(func=eGRN)
     # Required arguments
@@ -984,6 +985,11 @@ def add_parser_for_infer_egrn(subparser:argparse._SubParsersAction):
         action="store", type=int, required=False,
         default=1,
         help="Number of cores to use. Default is 1.")
+    parser.add_argument(
+        "--seed", dest="seed",
+        action="store", type=int, required=False,
+        default=666,
+        help="Seed to use. Default is 666.")
 
 def add_parser_for_aucell(subparser:argparse._SubParsersAction):
     parser:argparse.ArgumentParser = subparser.add_parser(
