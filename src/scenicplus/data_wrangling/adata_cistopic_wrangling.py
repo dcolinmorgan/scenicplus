@@ -91,8 +91,10 @@ def process_multiome_data(
     GEX_gene_metadata = GEX_anndata.var.copy(deep=True)
     GEX_cell_metadata = GEX_anndata.obs.copy(deep=True).loc[
         common_cells]
-    ACC_region_metadata = cisTopic_obj.region_data.copy(deep=True).loc[
-        imputed_acc_obj.feature_names]
+    ACC_region_metadata = pd.DataFrame(index = imputed_acc_obj.feature_names)
+    ACC_region_metadata = ACC_region_metadata.merge(
+        cisTopic_obj.region_data, left_index = True, right_index = True, how = "left")
+    ACC_region_metadata = ACC_region_metadata.loc[imputed_acc_obj.feature_names]
     ACC_cell_metadata = cisTopic_obj.cell_data.copy(deep=True).loc[
         common_cells]
 
@@ -331,7 +333,9 @@ def process_non_multiome_data(
     # generate cell metadata
     metadata_cell = pd.DataFrame(index=meta_cell_names_ACC,
                                     data={key_to_group_by: [x.split(meta_cell_split)[0] for x in meta_cell_names_ACC]})
-    ACC_region_metadata = cisTopic_obj.region_data.copy(deep=True)
+    ACC_region_metadata = pd.DataFrame(index = imputed_acc_obj.feature_names)
+    ACC_region_metadata = ACC_region_metadata.merge(
+        cisTopic_obj.region_data, left_index = True, right_index = True, how = "left")
     ACC_region_metadata_subset = ACC_region_metadata.loc[imputed_acc_obj.feature_names]
 
     mudata = MuData(
