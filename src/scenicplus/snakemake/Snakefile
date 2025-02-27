@@ -1,10 +1,86 @@
-# TODO: disable tqdm
+configfile: "config.yaml"
 
-configfile: "config/config.yaml"
+# Get run_id from command line, default to '1'
+run_id = config.get('run_id', '1')
+fraction = config['params_general'].get('fraction', 0.25)  # Get from config
+shuffle = config['params_general'].get('shuffle', False)  # Get from config
+
+# Define default params_general
+default_params_general = {
+    'output_dir': 'results/run_{run_id}',
+    'temp_dir': 'tmp',
+    'n_cpu': 30,
+    'fraction': 0.25,  # Moved here
+    'shuffle': False   # Moved here
+}
+
+# Load params_general from config with defaults
+params_general = config.get('params_general', default_params_general)
+
+# Update the output directory with the run_id
+params_general['output_dir'] = params_general['output_dir'].format(run_id=run_id)
+config['params_general'] = params_general
+
+# Update the output directory with the run_id
+output_dir = config['params_general']['output_dir'].format(run_id=run_id)
+
+# Update all output paths with the output directory
+for key in config['output_data']:
+    config['output_data'][key] = config['output_data'][key].replace('output_dir', output_dir)
+
+# Create output directory if it doesn't exist
+shell("mkdir -p {output_dir}")
 
 rule all:
     input:
+        config['output_data']['cisTopic_obj_processed'],
+        config['output_data']['GEX_anndata_processed'],
         scplus_mudata_out_fname=config["output_data"]["scplus_mdata"]
+
+# Preprocessing rule to sample and optionally shuffle data
+rule preprocess_data:
+    input:
+        cisTopic_obj_fname=config["input_data"]["cisTopic_obj_fname"],
+        GEX_anndata_fname=config["input_data"]["GEX_anndata_fname"]
+    output:
+        cisTopic_obj_processed=temp(config["output_data"]["cisTopic_obj_processed"]),
+        GEX_anndata_processed=temp(config["output_data"]["GEX_anndata_processed"])
+    params:
+        fraction=params_general['fraction'],
+        shuffle=params_general['shuffle']
+    run:
+        import scanpy as sc
+        import pickle
+        import numpy as np
+
+        # Load data
+        adata_orig = sc.read_h5ad(input.GEX_anndata_fname)
+        with open(input.cisTopic_obj_fname, 'rb') as f:
+            cistopic_obj = pickle.load(f)
+
+        # Make a copy of the original data
+        adata = adata_orig.copy()
+
+        # Sample the data if fraction < 1.0
+        if params.fraction < 1.0:
+            adata = sc.pp.sample(
+                adata,
+                n_obs=int(adata.n_obs * params.fraction),
+                replace=True,
+                copy=True
+            )
+            kept_cells = adata.obs.index
+            kept_indices = [i for i, name in enumerate(cistopic_obj.cell_names) if name in kept_cells]
+            cistopic_obj.cell_names = cistopic_obj.cell_names[kept_indices]
+            cistopic_obj.counts = cistopic_obj.counts[kept_indices]
+            for key in cistopic_obj.cell_data:
+                cistopic_obj.cell_data[key] = cistopic_obj.cell_data[key][kept_indices]
+
+        # Save processed data
+        adata.write_h5ad(output.GEX_anndata_processed)
+        with open(output.cisTopic_obj_processed, 'wb') as f:
+            pickle.dump(cistopic_obj, f)
+
 
 # Prepare data
 if config["params_data_preparation"]["is_multiome"]:

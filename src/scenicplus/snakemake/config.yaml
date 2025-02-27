@@ -1,47 +1,52 @@
+params_general:
+  output_dir: "results/run_{run_id}"
+  temp_dir: "tmp"
+  n_cpu: 30
+  fraction: 0.25
+  shuffle: False
+  seed: 666
+
 input_data:
-  cisTopic_obj_fname: ""
-  GEX_anndata_fname: ""
-  region_set_folder: ""
-  ctx_db_fname: ""
-  dem_db_fname: ""
-  path_to_motif_annotations: ""
+  cisTopic_obj_fname: "../../../data/outs/cistopic_obj.pkl"
+  GEX_anndata_fname: "../../../data/adata.h5ad"
+  region_set_folder: "../../../data/outs/region_sets"
+  ctx_db_fname: "../../../data/hg38_screen_v10_clust.regions_vs_motifs.rankings.feather"
+  dem_db_fname: "../../../data/hg38_screen_v10_clust.regions_vs_motifs.scores.feather"
+  path_to_motif_annotations: "../../../data/Motifsv10nrclustnr.tbl"
 
 output_data:
+  cisTopic_obj_processed: "{output_dir}/cisTopic_processed.obj"
+  GEX_anndata_processed: "{output_dir}/GEX_processed.h5ad"
   # output for prepare_GEX_ACC .h5mu
-  combined_GEX_ACC_mudata: "ACC_GEX.h5mu"
+  combined_GEX_ACC_mudata: "output_dir/ACC_GEX.h5mu"
   # output for motif enrichment results .hdf5
-  dem_result_fname: "dem_results.hdf5"
-  ctx_result_fname: "ctx_results.hdf5"
+  dem_result_fname: "output_dir/dem_results.hdf5"
+  ctx_result_fname: "output_dir/ctx_results.hdf5"
   # output html for motif enrichment results .html
-  output_fname_dem_html: "dem_results.html"
-  output_fname_ctx_html: "ctx_results.html"
+  output_fname_dem_html: "output_dir/dem_results.html"
+  output_fname_ctx_html: "output_dir/ctx_results.html"
   # output for prepare_menr .h5ad
-  cistromes_direct: "cistromes_direct.h5ad"
-  cistromes_extended: "cistromes_extended.h5ad"
+  cistromes_direct: "output_dir/cistromes_direct.h5ad"
+  cistromes_extended: "output_dir/cistromes_extended.h5ad"
   # output tf names .txt
-  tf_names: "tf_names.txt"
+  tf_names: "output_dir/tf_names.txt"
   # output for download_genome_annotations .tsv
-  genome_annotation: "genome_annotation.tsv"
-  chromsizes: "chromsizes.tsv"
+  genome_annotation: "output_dir/genome_annotation.tsv"
+  chromsizes: "output_dir/chromsizes.tsv"
   # output for search_space .tsb
-  search_space: "search_space.tsv"
+  search_space: "output_dir/search_space.tsv"
   # output tf_to_gene .tsv
-  tf_to_gene_adjacencies: "tf_to_gene_adj.tsv"
+  tf_to_gene_adjacencies: "output_dir/tf_to_gene_adj.tsv"
   # output region_to_gene .tsv
-  region_to_gene_adjacencies: "region_to_gene_adj.tsv"
+  region_to_gene_adjacencies: "output_dir/region_to_gene_adj.tsv"
   # output eGRN .tsv
-  eRegulons_direct: "eRegulon_direct.tsv"
-  eRegulons_extended: "eRegulons_extended.tsv"
+  eRegulons_direct: "output_dir/eRegulon_direct.tsv"
+  eRegulons_extended: "output_dir/eRegulons_extended.tsv"
   # output AUCell .h5mu
-  AUCell_direct: "AUCell_direct.h5mu"
-  AUCell_extended: "AUCell_extended.h5mu"
+  AUCell_direct: "output_dir/AUCell_direct.h5mu"
+  AUCell_extended: "output_dir/AUCell_extended.h5mu"
   # output scplus mudata .h5mu
-  scplus_mdata: "scplusmdata.h5mu"
-
-params_general:
-  temp_dir: ""
-  n_cpu: 40
-  seed: 666
+  scplus_mdata: "output_dir/scplusmdata.h5mu"
 
 params_data_preparation:
   # Params for prepare_GEX_ACC

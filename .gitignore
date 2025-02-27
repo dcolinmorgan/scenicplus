@@ -5,3 +5,8 @@ scplus_rtd
 .python-version
 build/*
 *.egg*
+/data
+/mallet
+/Mallet*
+.DS_Store
+*.snakemake.log
