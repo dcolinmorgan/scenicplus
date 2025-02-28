@@ -10,3 +10,10 @@ build/*
 /Mallet*
 .DS_Store
 *.snakemake.log
+cmV*
+*html
+*hdf5
+*.lock
+*.h5ad
+*.obj
+

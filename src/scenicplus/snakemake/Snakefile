@@ -1,95 +1,56 @@
+# TODO: disable tqdm
+
 configfile: "config.yaml"
 
-# Get run_id from command line, default to '1'
-run_id = config.get('run_id', '1')
-fraction = config['params_general'].get('fraction', 0.25)  # Get from config
-shuffle = config['params_general'].get('shuffle', False)  # Get from config
+# Get the number of runs from config or default to 1
+RUNS = list(range(1, config.get("num_runs", 1) + 1))
+RANDOM_SEED_OFFSET = config.get("random_seed_offset", 0)
 
-# Define default params_general
-default_params_general = {
-    'output_dir': 'results/run_{run_id}',
-    'temp_dir': 'tmp',
-    'n_cpu': 30,
-    'fraction': 0.25,  # Moved here
-    'shuffle': False   # Moved here
-}
-
-# Load params_general from config with defaults
-params_general = config.get('params_general', default_params_general)
-
-# Update the output directory with the run_id
-params_general['output_dir'] = params_general['output_dir'].format(run_id=run_id)
-config['params_general'] = params_general
-
-# Update the output directory with the run_id
-output_dir = config['params_general']['output_dir'].format(run_id=run_id)
-
-# Update all output paths with the output directory
-for key in config['output_data']:
-    config['output_data'][key] = config['output_data'][key].replace('output_dir', output_dir)
-
-# Create output directory if it doesn't exist
-shell("mkdir -p {output_dir}")
+# Set default results directory if not specified in config
+RESULTS_DIR = config.get("output_data", {}).get("results_dir", "results")
 
 rule all:
     input:
-        config['output_data']['cisTopic_obj_processed'],
-        config['output_data']['GEX_anndata_processed'],
-        scplus_mudata_out_fname=config["output_data"]["scplus_mdata"]
+        expand(RESULTS_DIR + "/{run}/scplus_mudata.h5mu", run=RUNS)
 
-# Preprocessing rule to sample and optionally shuffle data
-rule preprocess_data:
+# Sample the data with different random seeds for each run
+rule sample_data:
     input:
-        cisTopic_obj_fname=config["input_data"]["cisTopic_obj_fname"],
         GEX_anndata_fname=config["input_data"]["GEX_anndata_fname"]
     output:
-        cisTopic_obj_processed=temp(config["output_data"]["cisTopic_obj_processed"]),
-        GEX_anndata_processed=temp(config["output_data"]["GEX_anndata_processed"])
+        GEX_anndata_sampled_fname=RESULTS_DIR + "/{run}/GEX_anndata_sampled.h5ad"
     params:
-        fraction=params_general['fraction'],
-        shuffle=params_general['shuffle']
+        seed=lambda wildcards: int(wildcards.run) + RANDOM_SEED_OFFSET - 1
     run:
         import scanpy as sc
-        import pickle
+        import anndata as ad
         import numpy as np
-
-        # Load data
-        adata_orig = sc.read_h5ad(input.GEX_anndata_fname)
-        with open(input.cisTopic_obj_fname, 'rb') as f:
-            cistopic_obj = pickle.load(f)
-
-        # Make a copy of the original data
-        adata = adata_orig.copy()
-
-        # Sample the data if fraction < 1.0
-        if params.fraction < 1.0:
-            adata = sc.pp.sample(
-                adata,
-                n_obs=int(adata.n_obs * params.fraction),
-                replace=True,
-                copy=True
-            )
-            kept_cells = adata.obs.index
-            kept_indices = [i for i, name in enumerate(cistopic_obj.cell_names) if name in kept_cells]
-            cistopic_obj.cell_names = cistopic_obj.cell_names[kept_indices]
-            cistopic_obj.counts = cistopic_obj.counts[kept_indices]
-            for key in cistopic_obj.cell_data:
-                cistopic_obj.cell_data[key] = cistopic_obj.cell_data[key][kept_indices]
-
-        # Save processed data
-        adata.write_h5ad(output.GEX_anndata_processed)
-        with open(output.cisTopic_obj_processed, 'wb') as f:
-            pickle.dump(cistopic_obj, f)
-
+        import os
+        
+        # Create output directory if it doesn't exist
+        os.makedirs(os.path.dirname(output.GEX_anndata_sampled_fname), exist_ok=True)
+        
+        # Set random seed for reproducibility
+        np.random.seed(params.seed)
+        
+        # Read the input AnnData
+        adata = ad.read_h5ad(input.GEX_anndata_fname)
+        
+        # Sample the data (20% of cells)
+        sc.pp.sample(adata, replace=True, fraction=0.2)
+        
+        # Save the sampled data
+        adata.write(output.GEX_anndata_sampled_fname)
+        print(f"Run {wildcards.run}: Sampled data saved with seed {params.seed}")
 
 # Prepare data
 if config["params_data_preparation"]["is_multiome"]:
     rule prepare_GEX_ACC_multiome:
         input:
             cisTopic_obj_fname=config["input_data"]["cisTopic_obj_fname"],
-            GEX_anndata_fname=config["input_data"]["GEX_anndata_fname"]
+            GEX_anndata_fname=RESULTS_DIR + "/{run}/GEX_anndata_sampled.h5ad"
         output:
-            config["output_data"]["combined_GEX_ACC_mudata"]
+            combined_GEX_ACC_mudata=RESULTS_DIR + "/{run}/combined_GEX_ACC_mudata.h5mu"
         params:
             bc_transform_func=lambda wildcards: config["params_data_preparation"]["bc_transform_func"]
         shell:
@@ -97,16 +58,16 @@ if config["params_data_preparation"]["is_multiome"]:
             scenicplus prepare_data prepare_GEX_ACC \
                 --cisTopic_obj_fname {input.cisTopic_obj_fname} \
                 --GEX_anndata_fname {input.GEX_anndata_fname} \
-                --out_file {output} \
+                --out_file {output.combined_GEX_ACC_mudata} \
                 --bc_transform_func {params.bc_transform_func}
             """
 else:
     rule prepare_GEX_ACC_non_multiome:
         input:
             cisTopic_obj_fname=config["input_data"]["cisTopic_obj_fname"],
-            GEX_anndata_fname=config["input_data"]["GEX_anndata_fname"]
+            GEX_anndata_fname=RESULTS_DIR + "/{run}/GEX_anndata_sampled.h5ad"
         output:
-            config["output_data"]["combined_GEX_ACC_mudata"]
+            combined_GEX_ACC_mudata=RESULTS_DIR + "/{run}/combined_GEX_ACC_mudata.h5mu"
         params:
             bc_transform_func=lambda wildcards: config["params_data_preparation"]["bc_transform_func"],
             key_to_group_by=lambda wildcards: config["params_data_preparation"]["key_to_group_by"],
@@ -116,7 +77,7 @@ else:
             scenicplus prepare_data prepare_GEX_ACC \
                 --cisTopic_obj_fname {input.cisTopic_obj_fname} \
                 --GEX_anndata_fname {input.GEX_anndata_fname} \
-                --out_file {output} \
+                --out_file {output.combined_GEX_ACC_mudata} \
                 --bc_transform_func {params.bc_transform_func} \
                 --is_not_multiome \
                 --key_to_group_by {params.key_to_group_by} \
@@ -129,8 +90,8 @@ rule motif_enrichment_cistarget:
         ctx_db_fname=config["input_data"]["ctx_db_fname"],
         path_to_motif_annotations=config["input_data"]["path_to_motif_annotations"]
     output:
-        ctx_result_fname=config["output_data"]["ctx_result_fname"],
-        output_fname_ctx_html=config["output_data"]["output_fname_ctx_html"]
+        ctx_result_fname=RESULTS_DIR + "/{run}/ctx_result.pkl",
+        output_fname_ctx_html=RESULTS_DIR + "/{run}/ctx_result.html"
     params:
         temp_dir=lambda wildcards: config["params_general"]["temp_dir"],
         species=lambda wildcards: config["params_motif_enrichment"]["species"],
@@ -170,11 +131,11 @@ if config["params_motif_enrichment"]["dem_balance_number_of_promoters"]:
         input:
             region_set_folder=config["input_data"]["region_set_folder"],
             dem_db_fname=config["input_data"]["dem_db_fname"],
-            genome_annotation_fname=config["output_data"]["genome_annotation"],
+            genome_annotation_fname=RESULTS_DIR + "/{run}/genome_annotation.bed",
             path_to_motif_annotations=config["input_data"]["path_to_motif_annotations"]
         output:
-            dem_result_fname=config["output_data"]["dem_result_fname"],
-            output_fname_dem_html=config["output_data"]["output_fname_dem_html"]
+            dem_result_fname=RESULTS_DIR + "/{run}/dem_result.pkl",
+            output_fname_dem_html=RESULTS_DIR + "/{run}/dem_result.html"
         params:
             temp_dir=lambda wildcards: config["params_general"]["temp_dir"],
             species=lambda wildcards: config["params_motif_enrichment"]["species"],
@@ -226,8 +187,8 @@ else:
             dem_db_fname=config["input_data"]["dem_db_fname"],
             path_to_motif_annotations=config["input_data"]["path_to_motif_annotations"]
         output:
-            dem_result_fname=config["output_data"]["dem_result_fname"],
-            output_fname_dem_html=config["output_data"]["output_fname_dem_html"]
+            dem_result_fname=RESULTS_DIR + "/{run}/dem_result.pkl",
+            output_fname_dem_html=RESULTS_DIR + "/{run}/dem_result.html"
         params:
             temp_dir=lambda wildcards: config["params_general"]["temp_dir"],
             species=lambda wildcards: config["params_motif_enrichment"]["species"],
@@ -272,13 +233,13 @@ else:
 
 rule prepare_menr:
     input:
-        dem_result_fname=config["output_data"]["dem_result_fname"],
-        ctx_result_fname=config["output_data"]["ctx_result_fname"],
-        multiome_mudata_fname=config["output_data"]["combined_GEX_ACC_mudata"]
+        dem_result_fname=RESULTS_DIR + "/{run}/dem_result.pkl",
+        ctx_result_fname=RESULTS_DIR + "/{run}/ctx_result.pkl",
+        multiome_mudata_fname=RESULTS_DIR + "/{run}/combined_GEX_ACC_mudata.h5mu"
     output:
-        tf_names=config["output_data"]["tf_names"],
-        cistromes_direct=config["output_data"]["cistromes_direct"],
-        cistromes_extended=config["output_data"]["cistromes_extended"]
+        tf_names=RESULTS_DIR + "/{run}/tf_names.txt",
+        cistromes_direct=RESULTS_DIR + "/{run}/cistromes_direct.pkl",
+        cistromes_extended=RESULTS_DIR + "/{run}/cistromes_extended.pkl"
     params:
         direct_annotation=lambda wildcards: config["params_data_preparation"]["direct_annotation"],
         extended_annotation=lambda wildcards: config["params_data_preparation"]["extended_annotation"]
@@ -296,8 +257,8 @@ rule prepare_menr:
 
 rule download_genome_annotations:
     output:
-        genome_annotation=config["output_data"]["genome_annotation"],
-        chromsizes=config["output_data"]["chromsizes"]
+        genome_annotation=RESULTS_DIR + "/{run}/genome_annotation.bed",
+        chromsizes=RESULTS_DIR + "/{run}/chromsizes.bed"
     params:
         species=lambda wildcards: config["params_data_preparation"]["species"],
         biomart_host=lambda wildcards: config["params_data_preparation"]["biomart_host"]
@@ -312,11 +273,11 @@ rule download_genome_annotations:
 
 rule get_search_space:
     input:
-        multiome_mudata_fname=config["output_data"]["combined_GEX_ACC_mudata"],
-        genome_annotation=config["output_data"]["genome_annotation"],
-        chromsizes=config["output_data"]["chromsizes"]
+        multiome_mudata_fname=RESULTS_DIR + "/{run}/combined_GEX_ACC_mudata.h5mu",
+        genome_annotation=RESULTS_DIR + "/{run}/genome_annotation.bed",
+        chromsizes=RESULTS_DIR + "/{run}/chromsizes.bed"
     output:
-        search_space=config["output_data"]["search_space"]
+        search_space=RESULTS_DIR + "/{run}/search_space.bed"
     params:
         upstream=lambda wildcards: config["params_data_preparation"]["search_space_upstream"],
         downstream=lambda wildcards: config["params_data_preparation"]["search_space_downstream"],
@@ -335,14 +296,14 @@ rule get_search_space:
 
 rule tf_to_gene:
     input:
-        multiome_mudata_fname=config["output_data"]["combined_GEX_ACC_mudata"],
-        tf_names=config["output_data"]["tf_names"],
+        multiome_mudata_fname=RESULTS_DIR + "/{run}/combined_GEX_ACC_mudata.h5mu",
+        tf_names=RESULTS_DIR + "/{run}/tf_names.txt"
     output:
-        tf_to_gene_adjacencies=config["output_data"]["tf_to_gene_adjacencies"]
+        tf_to_gene_adjacencies=RESULTS_DIR + "/{run}/tf_to_gene_adjacencies.pkl"
     params:
         temp_dir=lambda wildcards: config["params_general"]["temp_dir"],
         method=lambda wildcards: config["params_inference"]["tf_to_gene_importance_method"],
-        seed=lambda wildcards: config["params_general"]["seed"]
+        seed=lambda wildcards: int(wildcards.run) + RANDOM_SEED_OFFSET - 1
     threads: config["params_general"]["n_cpu"]
     shell:
         """
@@ -358,14 +319,14 @@ rule tf_to_gene:
 
 rule region_to_gene:
     input:
-        multiome_mudata_fname=config["output_data"]["combined_GEX_ACC_mudata"],
-        search_space=config["output_data"]["search_space"],
+        multiome_mudata_fname=RESULTS_DIR + "/{run}/combined_GEX_ACC_mudata.h5mu",
+        search_space=RESULTS_DIR + "/{run}/search_space.bed"
     output:
-        region_to_gene_adjacencies=config["output_data"]["region_to_gene_adjacencies"]
+        region_to_gene_adjacencies=RESULTS_DIR + "/{run}/region_to_gene_adjacencies.pkl"
     params:
         temp_dir=lambda wildcards: config["params_general"]["temp_dir"],
         method_importance=lambda wildcards: config["params_inference"]["region_to_gene_importance_method"],
-        method_correlation=lambda wildcards: config["params_inference"]["region_to_gene_correlation_method"],
+        method_correlation=lambda wildcards: config["params_inference"]["region_to_gene_correlation_method"]
     threads: config["params_general"]["n_cpu"]
     shell:
         """
@@ -381,12 +342,12 @@ rule region_to_gene:
 
 rule eGRN_direct:
     input:
-        tf_to_gene_adjacencies=config["output_data"]["tf_to_gene_adjacencies"],
-        region_to_gene_adjacencies=config["output_data"]["region_to_gene_adjacencies"],
-        cistromes_direct=config["output_data"]["cistromes_direct"],
+        tf_to_gene_adjacencies=RESULTS_DIR + "/{run}/tf_to_gene_adjacencies.pkl",
+        region_to_gene_adjacencies=RESULTS_DIR + "/{run}/region_to_gene_adjacencies.pkl",
+        cistromes_direct=RESULTS_DIR + "/{run}/cistromes_direct.pkl",
         ranking_db_fname=config["input_data"]["ctx_db_fname"]
     output:
-        eRegulons_direct=config["output_data"]["eRegulons_direct"]
+        eRegulons_direct=RESULTS_DIR + "/{run}/eRegulons_direct.pkl"
     params:
         temp_dir=lambda wildcards: config["params_general"]["temp_dir"],
         order_regions_to_genes_by=lambda wildcards: config["params_inference"]["order_regions_to_genes_by"],
@@ -422,12 +383,12 @@ rule eGRN_direct:
 
 rule eGRN_extended:
     input:
-        tf_to_gene_adjacencies=config["output_data"]["tf_to_gene_adjacencies"],
-        region_to_gene_adjacencies=config["output_data"]["region_to_gene_adjacencies"],
-        cistromes_extended=config["output_data"]["cistromes_extended"],
+        tf_to_gene_adjacencies=RESULTS_DIR + "/{run}/tf_to_gene_adjacencies.pkl",
+        region_to_gene_adjacencies=RESULTS_DIR + "/{run}/region_to_gene_adjacencies.pkl",
+        cistromes_extended=RESULTS_DIR + "/{run}/cistromes_extended.pkl",
         ranking_db_fname=config["input_data"]["ctx_db_fname"]
     output:
-        eRegulons_extended=config["output_data"]["eRegulons_extended"]
+        eRegulons_extended=RESULTS_DIR + "/{run}/eRegulons_extended.pkl"
     params:
         temp_dir=lambda wildcards: config["params_general"]["temp_dir"],
         order_regions_to_genes_by=lambda wildcards: config["params_inference"]["order_regions_to_genes_by"],
@@ -461,12 +422,13 @@ rule eGRN_extended:
             --min_target_genes {params.min_target_genes} \
             --n_cpu {threads}
         """
+
 rule AUCell_direct:
     input:
-        eRegulons_direct=config["output_data"]["eRegulons_direct"],
-        multiome_mudata_fname=config["output_data"]["combined_GEX_ACC_mudata"],
+        eRegulons_direct=RESULTS_DIR + "/{run}/eRegulons_direct.pkl",
+        multiome_mudata_fname=RESULTS_DIR + "/{run}/combined_GEX_ACC_mudata.h5mu"
     output:
-        aucell_direct_out_fname=config["output_data"]["AUCell_direct"]
+        aucell_direct_out_fname=RESULTS_DIR + "/{run}/AUCell_direct.h5mu"
     threads: config["params_general"]["n_cpu"]
     shell:
         """
@@ -479,10 +441,10 @@ rule AUCell_direct:
 
 rule AUCell_extended:
     input:
-        eRegulons_extended=config["output_data"]["eRegulons_extended"],
-        multiome_mudata_fname=config["output_data"]["combined_GEX_ACC_mudata"],
+        eRegulons_extended=RESULTS_DIR + "/{run}/eRegulons_extended.pkl",
+        multiome_mudata_fname=RESULTS_DIR + "/{run}/combined_GEX_ACC_mudata.h5mu"
     output:
-        aucell_extended_out_fname=config["output_data"]["AUCell_extended"]
+        aucell_extended_out_fname=RESULTS_DIR + "/{run}/AUCell_extended.h5mu"
     threads: config["params_general"]["n_cpu"]
     shell:
         """
@@ -495,13 +457,13 @@ rule AUCell_extended:
 
 rule scplus_mudata:
     input:
-        multiome_mudata_fname=config["output_data"]["combined_GEX_ACC_mudata"],
-        aucell_direct_fname=config["output_data"]["AUCell_direct"],
-        aucell_extended_fname=config["output_data"]["AUCell_extended"],
-        eRegulons_direct_fname=config["output_data"]["eRegulons_direct"],
-        eRegulons_extended_fname=config["output_data"]["eRegulons_extended"]
+        multiome_mudata_fname=RESULTS_DIR + "/{run}/combined_GEX_ACC_mudata.h5mu",
+        aucell_direct_fname=RESULTS_DIR + "/{run}/AUCell_direct.h5mu",
+        aucell_extended_fname=RESULTS_DIR + "/{run}/AUCell_extended.h5mu",
+        eRegulons_direct_fname=RESULTS_DIR + "/{run}/eRegulons_direct.pkl",
+        eRegulons_extended_fname=RESULTS_DIR + "/{run}/eRegulons_extended.pkl"
     output:
-        scplus_mudata_out_fname=config["output_data"]["scplus_mdata"]
+        scplus_mudata_out_fname=RESULTS_DIR + "/{run}/scplus_mudata.h5mu"
     shell:
         """
         scenicplus grn_inference create_scplus_mudata \

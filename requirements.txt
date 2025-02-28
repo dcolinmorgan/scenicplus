@@ -763,7 +763,7 @@ smart-open==6.4.0
     #   snakemake
 smmap==5.0.1
     # via gitdb
-snakemake==8.5.5
+snakemake==7.32.4
     # via scenicplus (pyproject.toml)
 snakemake-interface-common==1.17.1
     # via
