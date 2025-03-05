@@ -26,8 +26,6 @@ rule sample_data:
         GEX_anndata_fname=config["input_data"]["GEX_anndata_fname"]
     output:
         GEX_anndata_sampled_fname=config["params_general"]["output_dir"] + "/GEX_anndata_sampled.h5ad"
-    params:
-        seed=lambda wildcards: config["params_general"].get("seed", 42) + int(run_id)
     run:
         import scanpy as sc
         import os
@@ -36,18 +34,19 @@ rule sample_data:
         # Create output directory if it doesn't exist
         os.makedirs(os.path.dirname(output.GEX_anndata_sampled_fname), exist_ok=True)
         
-        # Set random seed based on run_id for different samples in each run
-        np.random.seed(params.seed)
+        # Generate a random seed
+        random_seed = np.random.randint(0, 10000000)
         
         # Read the AnnData object
         adata = sc.read_h5ad(input.GEX_anndata_fname)
         
-        # Sample 10% of cells
-        sc.pp.sample(adata, fraction=0.1, replace=False)
+        # Sample 10% of cells using the random seed
+        sc.pp.sample(adata, fraction=0.1, random_state=random_seed, replace=False)
         
         # Save the sampled AnnData object
         adata.write(output.GEX_anndata_sampled_fname)
         print(f"Sampled AnnData saved with {adata.n_obs} cells (10% of original)")
+        print(f"Used random seed: {random_seed} for run {run_id} - note this value for reproducibility")
 
 
 # Prepare data
