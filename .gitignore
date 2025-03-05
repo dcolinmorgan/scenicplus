@@ -17,3 +17,4 @@ cmV*
 *.h5ad
 *.obj
 
+/src/scenicplus/snakemake/*

@@ -1,11 +1,10 @@
-
 input_data:
-  cisTopic_obj_fname: "../../../data/outs/cistopic_obj.pkl"
-  GEX_anndata_fname: "../../../data/adata.h5ad"
-  region_set_folder: "../../../data/outs/region_sets"
-  ctx_db_fname: "../../../data/hg38_screen_v10_clust.regions_vs_motifs.rankings.feather"
-  dem_db_fname: "../../../data/hg38_screen_v10_clust.regions_vs_motifs.scores.feather"
-  path_to_motif_annotations: "../../../data/Motifsv10nrclustnr.tbl"
+  cisTopic_obj_fname: "../../../../data/outs/cistopic_obj.pkl"
+  GEX_anndata_fname: "../../../../data/adata.h5ad"
+  region_set_folder: "../../../../data/outs/region_sets"
+  ctx_db_fname: "../../../../data/hg38_screen_v10_clust.regions_vs_motifs.rankings.feather"
+  dem_db_fname: "../../../../data/hg38_screen_v10_clust.regions_vs_motifs.scores.feather"
+  path_to_motif_annotations: "../../../../data/Motifsv10nrclustnr.tbl"
 
 output_data:
   # output for prepare_GEX_ACC .h5mu
@@ -43,10 +42,11 @@ params_general:
   temp_dir: "fuck"
   n_cpu: 40
   seed: 666
+  output_dir: 'results'
 
 params_data_preparation:
   # Params for prepare_GEX_ACC
-  bc_transform_func: "\"lambda x: f'{x}'\""
+  bc_transform_func: 'lambda x: x + "-10x_multiome_brain"'
   is_multiome: True
   key_to_group_by: ""
   nr_cells_per_metacells: 10
