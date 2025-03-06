@@ -46,7 +46,7 @@ params_general:
 
 params_data_preparation:
   # Params for prepare_GEX_ACC
-  bc_transform_func: 'lambda x: x + "-10x_multiome_brain" + str(x.name)'  ### remove this possibly
+  bc_transform_func: 'lambda x: x + "-10x_multiome_brain"'
   is_multiome: True
   key_to_group_by: ""
   nr_cells_per_metacells: 10

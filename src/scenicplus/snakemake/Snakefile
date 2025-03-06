@@ -41,7 +41,7 @@ rule sample_data:
         adata = sc.read_h5ad(input.GEX_anndata_fname)
         
         # Sample 10% of cells using the random seed
-        sc.pp.sample(adata, fraction=0.9, replace=True)
+        sc.pp.sample(adata, fraction=0.95, replace=False)
         
         # Save the sampled AnnData object
         # adata.obs.index=adata.obs.index.str.split('-').str[0]+'-1'
@@ -55,7 +55,7 @@ if config["params_data_preparation"]["is_multiome"]:
     rule prepare_GEX_ACC_multiome:
         input:
             cisTopic_obj_fname=config["input_data"]["cisTopic_obj_fname"],
-            GEX_anndata_fname=config["input_data"]["GEX_anndata_fname"]
+            GEX_anndata_fname=config["params_general"]["output_dir"] + "/GEX_anndata_sampled.h5ad"
         output:
             config["output_data"]["combined_GEX_ACC_mudata"]
         params:
